@@ -41,7 +41,6 @@ Copyright (c) 2021-2022 Qiange Wang, Northeastern University
 #include "dep/gemini/time.hpp"
 #include "dep/gemini/type.hpp"
 
-
 void CSC_segment_pinned::init(VertexId src_start, VertexId src_end,
                               VertexId dst_start, VertexId dst_end,
                               VertexId edge_size_, DeviceLocation dt_) {
@@ -55,13 +54,13 @@ void CSC_segment_pinned::init(VertexId src_start, VertexId src_end,
   dt = dt_;
 }
 
-//void CSC_segment_pinned::optional_init_sample(int layers) {
-//  VertexToComm.clear();
-//  for (int i = 0; i < layers; i++) {
-//    VertexToComm.push_back(new Bitmap(batch_size_forward));
-//    VertexToComm[i]->clear();
-//  }
-//}
+// void CSC_segment_pinned::optional_init_sample(int layers) {
+//   VertexToComm.clear();
+//   for (int i = 0; i < layers; i++) {
+//     VertexToComm.push_back(new Bitmap(batch_size_forward));
+//     VertexToComm[i]->clear();
+//   }
+// }
 
 // Allocate bitmap for forward and backward vertex
 // and row_offset and column_offset, for CSC/CSR format
@@ -72,7 +71,7 @@ void CSC_segment_pinned::allocVertexAssociateData() {
 
   source_active->clear();
   destination_active->clear();
-  
+
 #if CUDA_ENABLE
   if (dt == GPU_T) {
     column_offset = (VertexId *)cudaMallocPinned((batch_size_forward + 1) *
@@ -130,24 +129,24 @@ void CSC_segment_pinned::allocEdgeAssociateData() {
     memset(destination, 0, (edge_size + 1) * sizeof(long));
     source = (long *)malloc((edge_size + 1) * sizeof(long));
     memset(source, 0, (edge_size + 1) * sizeof(long));
-//    source_backward = (long *)malloc((edge_size + 1) * sizeof(long));
-//    memset(source_backward, 0, (edge_size + 1) * sizeof(long));
+    //    source_backward = (long *)malloc((edge_size + 1) * sizeof(long));
+    //    memset(source_backward, 0, (edge_size + 1) * sizeof(long));
   } else {
     assert(NOT_SUPPORT_DEVICE_TYPE);
   }
 }
 
-void CSC_segment_pinned::freeAdditional(){
-    #if CUDA_ENABLE
-    if (dt == GPU_T) {
-        ntsFreeHost(destination);
-        ntsFreeHost(source);
-    }
-    #endif
-    if (dt == CPU_T) {
-        free(destination);
-        free(source);
-    }
+void CSC_segment_pinned::freeAdditional() {
+#if CUDA_ENABLE
+  if (dt == GPU_T) {
+    ntsFreeHost(destination);
+    ntsFreeHost(source);
+  }
+#endif
+  if (dt == CPU_T) {
+    free(destination);
+    free(source);
+  }
 }
 
 void CSC_segment_pinned::getDevicePointerAll() {
@@ -165,7 +164,7 @@ void CSC_segment_pinned::getDevicePointerAll() {
 
     source_gpu = (long *)getDevicePointer(source);           ///
     destination_gpu = (long *)getDevicePointer(destination); ///
-//    source_backward_gpu = (long *)getDevicePointer(source_backward);
+    //    source_backward_gpu = (long *)getDevicePointer(source_backward);
   } else
 #endif
       if (dt == CPU_T) {
@@ -208,7 +207,7 @@ void CSC_segment_pinned::CopyGraphToDevice() {
 
     source_gpu = (long *)getDevicePointer(source);           ///
     destination_gpu = (long *)getDevicePointer(destination); ///
-//    source_backward_gpu = (long *)getDevicePointer(source_backward);
+    //    source_backward_gpu = (long *)getDevicePointer(source_backward);
 
   } else
 #endif
@@ -314,7 +313,7 @@ void InputInfo::print() {
   std::cout << "decay_rate\t:\t" << decay_rate << std::endl;
   std::cout << "decay_epoch\t:\t" << decay_epoch << std::endl;
   std::cout << "drop_rate\t:\t" << drop_rate << std::endl;
-  std::cout <<"------------------input info--------------"<<std::endl;
+  std::cout << "------------------input info--------------" << std::endl;
 }
 
 void RuntimeInfo::init_rtminfo() {

@@ -16,19 +16,19 @@ public:
   // graph
   VertexSubset *active;
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
   NtsVar MASK_gpu;
-  //GraphOperation *gt;
+  // GraphOperation *gt;
   PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
-  nts::ctx::NtsContext* ctx;
+  nts::ctx::NtsContext *ctx;
   NtsVar F;
   NtsVar loss;
   NtsVar tt;
@@ -66,27 +66,30 @@ public:
     graph->rtminfo->lock_free = graph->config->lock_free;
   }
   void init_graph() {
-//    graph->generate_COO();
-//    graph->reorder_COO_W2W();
-//    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
-//    gt = new GraphOperation(graph, active);
-//    gt->GenerateGraphSegment(subgraphs, GPU_T, [&](VertexId src, VertexId dst) {
-//      return gt->norm_degree(src, dst);
-//    });
-//    double load_rep_time = 0;
-//    load_rep_time -= get_time();
-//    // graph->load_replicate3(graph->gnnctx->layer_size);
-//    load_rep_time += get_time();
-//    if (graph->partition_id == 0)
-//      printf("#load_rep_time=%lf(s)\n", load_rep_time);
-//    gt->GenerateMessageBitmap(subgraphs);
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return nts::op::nts_norm_degree(graph,src, dst);
-        },GPU_T);  
+    //    graph->generate_COO();
+    //    graph->reorder_COO_W2W();
+    //    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
+    //    gt = new GraphOperation(graph, active);
+    //    gt->GenerateGraphSegment(subgraphs, GPU_T, [&](VertexId src, VertexId
+    //    dst) {
+    //      return gt->norm_degree(src, dst);
+    //    });
+    //    double load_rep_time = 0;
+    //    load_rep_time -= get_time();
+    //    // graph->load_replicate3(graph->gnnctx->layer_size);
+    //    load_rep_time += get_time();
+    //    if (graph->partition_id == 0)
+    //      printf("#load_rep_time=%lf(s)\n", load_rep_time);
+    //    gt->GenerateMessageBitmap(subgraphs);
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) {
+          return nts::op::nts_norm_degree(graph, src, dst);
+        },
+        GPU_T);
     graph->init_message_buffer();
     graph->init_communicatior();
-    ctx=new nts::ctx::NtsContext();
+    ctx = new nts::ctx::NtsContext();
   }
   void init_nn() {
 
@@ -99,7 +102,7 @@ public:
     beta1 = 0.9;
     beta2 = 0.999;
     epsilon = 1e-9;
-    
+
     torch::manual_seed(0);
     GNNDatum *gnndatum = new GNNDatum(graph->gnnctx, graph);
     if (0 == graph->config->feature_file.compare("random")) {
@@ -219,16 +222,15 @@ public:
     graph->rtminfo->forward = true;
     for (int i = 0; i < graph->gnnctx->layer_size.size() - 1; i++) {
       graph->rtminfo->curr_layer = i;
-       NtsVar Y_i= ctx->runGraphOp<nts::op::ForwardGPUfuseOp>(partitioned_graph,active,X[i]);      
-       X[i + 1]=ctx->runVertexForward([&](NtsVar n_i,NtsVar v_i){
-            return vertexForward(n_i, v_i);
-        },
-        Y_i,
-        X[i]);
+      NtsVar Y_i = ctx->runGraphOp<nts::op::ForwardGPUfuseOp>(partitioned_graph,
+                                                              active, X[i]);
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar n_i, NtsVar v_i) { return vertexForward(n_i, v_i); }, Y_i,
+          X[i]);
     }
   }
 
-   void run() {
+  void run() {
     if (graph->partition_id == 0)
       printf("GNNmini::Engine[Dist.GPU.GCNimpl] running [%d] Epochs\n",
              iterations);
@@ -258,5 +260,4 @@ public:
 
     delete active;
   }
-
 };

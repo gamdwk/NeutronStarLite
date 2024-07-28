@@ -36,13 +36,13 @@ Copyright (c) 2021-2022 Qiange Wang, Northeastern University
 #include <thread>
 #include <vector>
 
+#include "cuda/cuda_type.h"
 #include "dep/gemini/atomic.hpp"
 #include "dep/gemini/bitmap.hpp"
 #include "dep/gemini/constants.hpp"
 #include "dep/gemini/filesystem.hpp"
 #include "dep/gemini/time.hpp"
 #include "dep/gemini/type.hpp"
-#include "cuda/cuda_type.h"
 #if CUDA_ENABLE
 #include "cuda/ntsCUDA.hpp"
 #endif
@@ -58,13 +58,13 @@ public:
 
   long *source;
   long *destination;
-//  long *source_backward;
+  //  long *source_backward;
 
   ValueType *edge_weight_forward; // edge_size
   ValueType *edge_weight_backward;
 
-//  VertexId *backward_message_index;
-//  VertexId *forward_message_index;
+  //  VertexId *backward_message_index;
+  //  VertexId *forward_message_index;
   VertexId *forward_multisocket_message_index;
   BackVertexIndex *backward_multisocket_message_index;
 
@@ -76,7 +76,7 @@ public:
   long *source_gpu;
   long *destination_gpu;
 
-//  long *source_backward_gpu;
+  //  long *source_backward_gpu;
 
   ValueType *edge_weight_forward_gpu;  // edge_size
   ValueType *edge_weight_backward_gpu; // edge_size
@@ -91,7 +91,7 @@ public:
   int dst_range[2];
   Bitmap *source_active;
   Bitmap *destination_active;
-  //std::vector<Bitmap *> VertexToComm;
+  // std::vector<Bitmap *> VertexToComm;
 
   DeviceLocation dt;
   void init(VertexId src_start, VertexId src_end, VertexId dst_start,
@@ -110,39 +110,39 @@ public:
   void freeAdditional();
 
   inline bool src_get_active(VertexId v_i) {
-      return this->source_active->get_bit(v_i - src_range[0]);
+    return this->source_active->get_bit(v_i - src_range[0]);
   }
 
   inline bool dst_get_active(VertexId v_i) {
-      return this->destination_active->get_bit(v_i - dst_range[0]);
+    return this->destination_active->get_bit(v_i - dst_range[0]);
   }
 
-//  inline bool get_forward_active(VertexId v_i) {
-//      return this->forward_active->get_bit(v_i);
-//  }
-//
-//  inline void set_forward_active(VertexId v_i) {
-//      this->forward_active->set_bit(v_i);
-//  }
-//
-//  inline bool get_backward_active(VertexId v_i) {
-//      return this->source_active->get_bit(v_i - src_range[0]);
-//  }
+  //  inline bool get_forward_active(VertexId v_i) {
+  //      return this->forward_active->get_bit(v_i);
+  //  }
+  //
+  //  inline void set_forward_active(VertexId v_i) {
+  //      this->forward_active->set_bit(v_i);
+  //  }
+  //
+  //  inline bool get_backward_active(VertexId v_i) {
+  //      return this->source_active->get_bit(v_i - src_range[0]);
+  //  }
 
   inline void src_set_active(VertexId v_i) {
-      this->source_active->set_bit(v_i - src_range[0]);
+    this->source_active->set_bit(v_i - src_range[0]);
   }
 
   inline void dst_set_active(VertexId v_i) {
-      this->destination_active->set_bit(v_i - dst_range[0]);
+    this->destination_active->set_bit(v_i - dst_range[0]);
   }
 };
 
-class SampleGraph{
-    VertexId* source;
-    VertexId* destination;
-    VertexId* column_offset;
-    VertexId* row_indices;
+class SampleGraph {
+  VertexId *source;
+  VertexId *destination;
+  VertexId *column_offset;
+  VertexId *row_indices;
 };
 
 class InputInfo {
@@ -208,7 +208,7 @@ public:
 class GNNContext {
 public:
   std::vector<int> layer_size; // feature size at each layer, 0 is input feature
-  std::vector<int> fanout; // feature size at each layer, 0 is input feature
+  std::vector<int> fanout;     // feature size at each layer, 0 is input feature
   size_t max_layer;
   size_t label_num;
   size_t p_id;    // partition id

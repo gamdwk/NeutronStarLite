@@ -922,7 +922,7 @@ public:
 
   template <typename TFirstGraphDatum, typename... TGraphDatum>
   void AllocateDatumObjects(TFirstGraphDatum &first_datum,
-                            TGraphDatum &... more_data) {
+                            TGraphDatum &...more_data) {
     AllocateDatum(first_datum);
     AllocateDatumObjects(more_data...);
   }
@@ -1376,7 +1376,7 @@ public:
 
   template <typename TFirstGraphDatum, typename... TGraphDatum>
   void AllocateDatumObjects(TFirstGraphDatum &first_datum,
-                            TGraphDatum &... more_data) {
+                            TGraphDatum &...more_data) {
     AllocateDatum(first_datum);
     AllocateDatumObjects(more_data...);
   }
@@ -1467,7 +1467,7 @@ public:
 
   template <typename TFirstGraphDatum, typename... TGraphDatum>
   void AllocateDatumObjects(TFirstGraphDatum &first_datum,
-                            TGraphDatum &... more_data) {
+                            TGraphDatum &...more_data) {
     AllocateDatum(first_datum);
     AllocateDatumObjects(more_data...);
   }

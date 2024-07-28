@@ -43,12 +43,12 @@ Copyright (c) 2015-2016 Xiaowei Zhu, Tsinghua University
 #include "dep/gemini/type.hpp"
 
 #include "ATen/ATen.h"
-#include "core/GraphSegment.h"
 #include "comm/network.h"
+#include "core/GraphSegment.h"
 #include "torch/csrc/autograd/generated/variable_factories.h"
 #include "torch/nn/module.h"
 #include "torch/torch.h"
-//#define CUDA_ENABLE 1
+// #define CUDA_ENABLE 1
 typedef torch::Tensor NtsVar;
 typedef torch::nn::Module NtsMudule;
 typedef torch::DeviceType NtsDevide;
@@ -133,21 +133,22 @@ public:
 //                            (dstT).expand({dstT.size(0), dst_input.size(1)}));
 //  }
 #if CUDA_ENABLE
-//  inline torch::Tensor PrepareMessage(torch::Tensor &message) {
-//    return torch::sparse_coo_tensor(torch::cat({srcT, dstT}, 1).t(), message,
-//                                    at::TensorOptions()
-//                                        .device_index(0)
-//                                        .dtype(torch::kFloat)
-//                                        .requires_grad(true));
-//  }
-//  inline torch::Tensor PrepareMessage(torch::Tensor index,
-//                                      torch::Tensor &message) {
-//    return torch::sparse_coo_tensor(index, message,
-//                                    at::TensorOptions()
-//                                        .device_index(0)
-//                                        .dtype(torch::kFloat)
-//                                        .requires_grad(true));
-//  }
+  //  inline torch::Tensor PrepareMessage(torch::Tensor &message) {
+  //    return torch::sparse_coo_tensor(torch::cat({srcT, dstT}, 1).t(),
+  //    message,
+  //                                    at::TensorOptions()
+  //                                        .device_index(0)
+  //                                        .dtype(torch::kFloat)
+  //                                        .requires_grad(true));
+  //  }
+  //  inline torch::Tensor PrepareMessage(torch::Tensor index,
+  //                                      torch::Tensor &message) {
+  //    return torch::sparse_coo_tensor(index, message,
+  //                                    at::TensorOptions()
+  //                                        .device_index(0)
+  //                                        .dtype(torch::kFloat)
+  //                                        .requires_grad(true));
+  //  }
   inline void GatherByDstFromSrc(torch::Tensor &output,
                                  torch::Tensor &input_src,
                                  torch::Tensor weight) { // TODO
@@ -182,8 +183,8 @@ public:
           // weight_buffer, //data
           forward_weight_from_pinned, row_indices_from_pinned,
           column_offset_from_pinned, // graph
-          (VertexId)src_start, (VertexId)src_end,
-          (VertexId)dst_start, (VertexId)dst_end, (VertexId)subgraph->edge_size,
+          (VertexId)src_start, (VertexId)src_end, (VertexId)dst_start,
+          (VertexId)dst_end, (VertexId)subgraph->edge_size,
           (VertexId)subgraph->batch_size_forward, (VertexId)output_size,
           rtminfo->with_weight);
     }
@@ -210,28 +211,31 @@ public:
     // cuda_stream->CUDA_DEVICE_SYNCHRONIZE();
   }
 
-//  inline void BackwardScatterGradBackToWeight(torch::Tensor &input_src,
-//                                              torch::Tensor &grad_output,
-//                                              torch::Tensor &weight_grad) {
-//    ValueType *input_src_buffer = getWritableBuffer(input_src);
-//    ValueType *grad_output_buffer =
-//        getWritableBuffer(grad_output); //.packed_accessor<float,2>().data();
-//    ValueType *weight_grad_buffer =
-//        getWritableBuffer(weight_grad); //.packed_accessor<float,2>().data();
-//    VertexId src_start = subgraph->src_range[0];
-//    VertexId src_end = subgraph->src_range[1];
-//    VertexId dst_start = subgraph->dst_range[0];
-//    VertexId dst_end = subgraph->dst_range[1];
-//    cuda_stream->Scatter_Grad_Back_To_Weight(
-//        input_src_buffer, grad_output_buffer,
-//        weight_grad_buffer, // data
-//        subgraph->source_gpu,
-//        subgraph->destination_gpu, // graph
-//        (VertexId)src_start, (VertexId)src_end, (VertexId)dst_start,
-//        (VertexId)dst_end, (VertexId)subgraph->edge_size,
-//        (VertexId)subgraph->batch_size_forward, (VertexId)output_size, false);
-//    cuda_stream->CUDA_DEVICE_SYNCHRONIZE();
-//  }
+  //  inline void BackwardScatterGradBackToWeight(torch::Tensor &input_src,
+  //                                              torch::Tensor &grad_output,
+  //                                              torch::Tensor &weight_grad) {
+  //    ValueType *input_src_buffer = getWritableBuffer(input_src);
+  //    ValueType *grad_output_buffer =
+  //        getWritableBuffer(grad_output);
+  //        //.packed_accessor<float,2>().data();
+  //    ValueType *weight_grad_buffer =
+  //        getWritableBuffer(weight_grad);
+  //        //.packed_accessor<float,2>().data();
+  //    VertexId src_start = subgraph->src_range[0];
+  //    VertexId src_end = subgraph->src_range[1];
+  //    VertexId dst_start = subgraph->dst_range[0];
+  //    VertexId dst_end = subgraph->dst_range[1];
+  //    cuda_stream->Scatter_Grad_Back_To_Weight(
+  //        input_src_buffer, grad_output_buffer,
+  //        weight_grad_buffer, // data
+  //        subgraph->source_gpu,
+  //        subgraph->destination_gpu, // graph
+  //        (VertexId)src_start, (VertexId)src_end, (VertexId)dst_start,
+  //        (VertexId)dst_end, (VertexId)subgraph->edge_size,
+  //        (VertexId)subgraph->batch_size_forward, (VertexId)output_size,
+  //        false);
+  //    cuda_stream->CUDA_DEVICE_SYNCHRONIZE();
+  //  }
   inline void BackwardScatterGradBackToMessage(torch::Tensor &grad_dst,
                                                torch::Tensor &message_grad) {
     ValueType *grad_dst_buffer = getWritableBuffer(grad_dst);
@@ -284,9 +288,8 @@ public:
           // weight_buffer, //data
           backward_weight_from_pinned,
           row_offset_from_pinned, // graph
-          column_indices_from_pinned,
-          (VertexId)src_start, (VertexId)src_end, (VertexId)dst_start,
-          (VertexId)dst_end, (VertexId)subgraph->edge_size,
+          column_indices_from_pinned, (VertexId)src_start, (VertexId)src_end,
+          (VertexId)dst_start, (VertexId)dst_end, (VertexId)subgraph->edge_size,
           (VertexId)subgraph->batch_size_backward, (VertexId)output_size,
           rtminfo->with_weight);
     }
@@ -479,8 +482,7 @@ public:
                             at::TensorOptions().dtype(torch::kLong));
   }
   inline torch::Tensor NewLeafKLongTensor(at::IntArrayRef size) {
-    return torch::zeros(size,
-                            at::TensorOptions().dtype(torch::kLong));
+    return torch::zeros(size, at::TensorOptions().dtype(torch::kLong));
   }
   inline torch::Tensor NewLeafKIntTensor(int *data, at::IntArrayRef size) {
     return torch::from_blob(data, size,
@@ -553,55 +555,56 @@ public:
   AGGTYPE aggtype;
   // src_input.cpu() dst_input.cpu()
 };
-class FeatureCache{
+class FeatureCache {
 public:
-  
-  //std::string caching_policy;
+  // std::string caching_policy;
   VertexId policy_number;
-  //0 simple_chunk
-  //1 simple_full
-  //2 standard_chunk
-  //3 standard_chunk
-  FeatureCache(VertexId policy,VertexId partitions_){
-      policy_number=policy;
-      partitions=partitions_;
-      if(policy_number==0){
-          cached_feature_for_chunks.resize(partitions,nullptr);
-          cached_count.resize(partitions,0);
-      }else if(policy_number==1){
-          ;
-      }
+  // 0 simple_chunk
+  // 1 simple_full
+  // 2 standard_chunk
+  // 3 standard_chunk
+  FeatureCache(VertexId policy, VertexId partitions_) {
+    policy_number = policy;
+    partitions = partitions_;
+    if (policy_number == 0) {
+      cached_feature_for_chunks.resize(partitions, nullptr);
+      cached_count.resize(partitions, 0);
+    } else if (policy_number == 1) {
+      ;
+    }
   }
 #if CUDA_ENABLE
-  void push_chunk_for_cuda(VertexId partition_id, VertexId count,VertexId f_size, char *message_ptr){
-      cached_count[partition_id]=count;
-      cached_feature_for_chunks[partition_id]=(char*)cudaMallocPinned(count*(f_size*sizeof(ValueType)+sizeof(VertexId)));
-      memcpy(cached_feature_for_chunks[partition_id],message_ptr,count*(f_size*sizeof(ValueType)+sizeof(VertexId)));
+  void push_chunk_for_cuda(VertexId partition_id, VertexId count,
+                           VertexId f_size, char *message_ptr) {
+    cached_count[partition_id] = count;
+    cached_feature_for_chunks[partition_id] = (char *)cudaMallocPinned(
+        count * (f_size * sizeof(ValueType) + sizeof(VertexId)));
+    memcpy(cached_feature_for_chunks[partition_id], message_ptr,
+           count * (f_size * sizeof(ValueType) + sizeof(VertexId)));
   }
 #endif
-  void push_chunk(VertexId partition_id, VertexId count,VertexId f_size, char *message_ptr){
-      cached_count[partition_id]=count;
-      cached_feature_for_chunks[partition_id]=(char*)malloc(count*(f_size*sizeof(ValueType)+sizeof(VertexId)));
-      memcpy(cached_feature_for_chunks[partition_id],message_ptr,count*(f_size*sizeof(ValueType)+sizeof(VertexId)));
+  void push_chunk(VertexId partition_id, VertexId count, VertexId f_size,
+                  char *message_ptr) {
+    cached_count[partition_id] = count;
+    cached_feature_for_chunks[partition_id] =
+        (char *)malloc(count * (f_size * sizeof(ValueType) + sizeof(VertexId)));
+    memcpy(cached_feature_for_chunks[partition_id], message_ptr,
+           count * (f_size * sizeof(ValueType) + sizeof(VertexId)));
   }
-  void push_mirror(NtsVar &mirrors){
-      cached_feature_for_mirrors=mirrors;
+  void push_mirror(NtsVar &mirrors) { cached_feature_for_mirrors = mirrors; }
+  char *get_chunk_data(VertexId partition_id) {
+    return cached_feature_for_chunks[partition_id];
   }
-  char* get_chunk_data(VertexId partition_id){
-      return cached_feature_for_chunks[partition_id];
+  VertexId get_chunk_count(VertexId partition_id) {
+    return cached_count[partition_id];
   }
-  VertexId get_chunk_count(VertexId partition_id){
-      return cached_count[partition_id];
-  }
-  NtsVar get_mirror(){
-      return cached_feature_for_mirrors;
-  }
-  //for chunk-based processing
-      std::vector<char*>cached_feature_for_chunks;
-      std::vector<VertexId>cached_count;
+  NtsVar get_mirror() { return cached_feature_for_mirrors; }
+  // for chunk-based processing
+  std::vector<char *> cached_feature_for_chunks;
+  std::vector<VertexId> cached_count;
   VertexId partitions;
-  
-  //for whole graph processing
+
+  // for whole graph processing
   NtsVar cached_feature_for_mirrors;
 };
 

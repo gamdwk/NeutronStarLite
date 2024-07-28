@@ -3,3 +3,10 @@ build/
 
 # no editor files
 .vscode/
+
+# no libtorch
+libtorch/
+cuda/cub/
+.cache/
+libtorch*
+data/*

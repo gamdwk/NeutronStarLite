@@ -84,6 +84,7 @@ public:
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
+  int get_partition_id() { return partition_id; }
 };
 
 #endif

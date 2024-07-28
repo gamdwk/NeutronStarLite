@@ -15,19 +15,19 @@ public:
   // graph
   VertexSubset *active;
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
   std::map<std::string, NtsVar> I_data;
-  //GraphOperation *gt;
-  PartitionedGraph * partitioned_graph;
+  // GraphOperation *gt;
+  PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
-  //nts::autodiff::ComputionPath *cp;
+  // nts::autodiff::ComputionPath *cp;
   nts::ctx::NtsContext *ctx;
   NtsVar F;
   NtsVar loss;
@@ -66,24 +66,24 @@ public:
   }
   void init_graph() {
     // std::vector<CSC_segment_pinned *> csc_segment;
-//    graph->generate_COO();
-//    graph->reorder_COO_W2W();
+    //    graph->generate_COO();
+    //    graph->reorder_COO_W2W();
     // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
-    
-//    gt = new GraphOperation(graph, active);
-//    gt->GenerateGraphSegment(subgraphs, CPU_T, [&](VertexId src, VertexId dst) {
-//      return gt->norm_degree(src, dst);
-//    });
-//    // gt->GenerateMessageBitmap(subgraphs);
-//    gt->GenerateMessageBitmap_multisokects(subgraphs);
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return 1;
-    },CPU_T);
-    
+
+    //    gt = new GraphOperation(graph, active);
+    //    gt->GenerateGraphSegment(subgraphs, CPU_T, [&](VertexId src, VertexId
+    //    dst) {
+    //      return gt->norm_degree(src, dst);
+    //    });
+    //    // gt->GenerateMessageBitmap(subgraphs);
+    //    gt->GenerateMessageBitmap_multisokects(subgraphs);
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) { return 1; }, CPU_T);
+
     graph->init_communicatior();
-    //cp = new nts::autodiff::ComputionPath(gt, subgraphs, true);
-    ctx= new nts::ctx::NtsContext();
+    // cp = new nts::autodiff::ComputionPath(gt, subgraphs, true);
+    ctx = new nts::ctx::NtsContext();
   }
   void init_nn() {
 
@@ -129,7 +129,7 @@ public:
         torch::DeviceType::CPU);
 
     NtsVar d;
-    X.resize(graph->gnnctx->layer_size.size(),d);
+    X.resize(graph->gnnctx->layer_size.size(), d);
     X[0] = F.set_requires_grad(true);
   }
 
@@ -187,41 +187,38 @@ public:
     y = P[2 * layer]->forward(x).set_requires_grad(true);
     return y;
   }
-  NtsVar vertexForward(NtsVar &a, NtsVar &x) {
-    return torch::relu(a);
-  }
+  NtsVar vertexForward(NtsVar &a, NtsVar &x) { return torch::relu(a); }
 
   void Forward() {
     graph->rtminfo->forward = true;
     for (int i = 0; i < graph->gnnctx->layer_size.size() - 1; i++) {
       graph->rtminfo->curr_layer = i;
-      NtsVar X_trans=ctx->runVertexForward([&](NtsVar x_i){
-            return preForward(x_i);},
-        X[i]);//pre apply    
-      NtsVar E_msg=ctx->runGraphOp<nts::op::SingleCPUSrcDstScatterOp>(
-              partitioned_graph,active,X_trans);// scatterto edge
-      
-      NtsVar m=ctx->runEdgeForward([&](NtsVar e_msg){
+      NtsVar X_trans =
+          ctx->runVertexForward([&](NtsVar x_i) { return preForward(x_i); },
+                                X[i]); // pre apply
+      NtsVar E_msg = ctx->runGraphOp<nts::op::SingleCPUSrcDstScatterOp>(
+          partitioned_graph, active, X_trans); // scatterto edge
+
+      NtsVar m = ctx->runEdgeForward(
+          [&](NtsVar e_msg) {
             int layer = graph->rtminfo->curr_layer;
-            return torch::leaky_relu(P[2 * layer + 1]->forward(e_msg),0.2);
-        },
-      E_msg);//edge NN
-        
-      NtsVar a=ctx->runGraphOp<nts::op::SingleEdgeSoftMax>(partitioned_graph,
-              active,m);// edge NN   
-      
-      NtsVar E_msg_out=ctx->runEdgeForward([&](NtsVar a){
-            return E_msg.slice(1, 0, E_msg.size(1) / 2, 1)*a;
-        },
-      a);//Edge NN 
-        
-      NtsVar nbr=ctx->runGraphOp<nts::op::SingleCPUDstAggregateOp>(
-              partitioned_graph,active,E_msg_out);//agg  
-      
-      X[i+1]=ctx->runVertexForward([&](NtsVar nbr){
-            return torch::relu(nbr);
-        },nbr);
-    //        printf("hellow\n");
+            return torch::leaky_relu(P[2 * layer + 1]->forward(e_msg), 0.2);
+          },
+          E_msg); // edge NN
+
+      NtsVar a = ctx->runGraphOp<nts::op::SingleEdgeSoftMax>(
+          partitioned_graph, active, m); // edge NN
+
+      NtsVar E_msg_out = ctx->runEdgeForward(
+          [&](NtsVar a) { return E_msg.slice(1, 0, E_msg.size(1) / 2, 1) * a; },
+          a); // Edge NN
+
+      NtsVar nbr = ctx->runGraphOp<nts::op::SingleCPUDstAggregateOp>(
+          partitioned_graph, active, E_msg_out); // agg
+
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar nbr) { return torch::relu(nbr); }, nbr);
+      //        printf("hellow\n");
     }
   }
 
@@ -241,8 +238,8 @@ public:
       Test(1);
       Test(2);
       Loss();
-//      ctx->debug();
-//       ctx->reset();
+      //      ctx->debug();
+      //       ctx->reset();
       ctx->self_backward(true);
       Update();
       //     cp->debug();
@@ -250,28 +247,28 @@ public:
         std::cout << "Nts::Running.Epoch[" << i_i << "]:loss\t" << loss
                   << std::endl;
     }
-//        NtsVar s=torch::rand({3,1});
-//        s[0][0]=1;
-//        s[1][0]=2;
-//        s[2][0]=3;
-//        NtsVar s1=torch::rand({3,1});
-//        s1[0][0]=2;
-//        s1[1][0]=3;
-//        s1[2][0]=4;
-//        s.set_requires_grad(true);
-//        s1.set_requires_grad(true);
-//        NtsVar s2=s.softmax(0);
-//        NtsVar s3=s2*s1;
-//        std::cout<<"s :\n"<<s<<std::endl;
-//        std::cout<<"s1:\n"<<s1<<std::endl;
-//        std::cout<<"s2:\n"<<s2<<std::endl;
-//        std::cout<<"s3:\n"<<s3<<std::endl;
-//        s3.backward(torch::ones_like(s3));
-//        std::cout<<"s.grad():\n"<<s.grad()<<std::endl;
-//        NtsVar s4=torch::zeros({3,1});
-//        s4=(s2*s1)-(s2)*(s2.t().mm(s1));        
-//    NtsVar s4=torch::rand({3,3});
-//        std::cout<<"s4.grad():\n"<<s4<<"\n"<<s4.sum(-1)<<std::endl;
+    //        NtsVar s=torch::rand({3,1});
+    //        s[0][0]=1;
+    //        s[1][0]=2;
+    //        s[2][0]=3;
+    //        NtsVar s1=torch::rand({3,1});
+    //        s1[0][0]=2;
+    //        s1[1][0]=3;
+    //        s1[2][0]=4;
+    //        s.set_requires_grad(true);
+    //        s1.set_requires_grad(true);
+    //        NtsVar s2=s.softmax(0);
+    //        NtsVar s3=s2*s1;
+    //        std::cout<<"s :\n"<<s<<std::endl;
+    //        std::cout<<"s1:\n"<<s1<<std::endl;
+    //        std::cout<<"s2:\n"<<s2<<std::endl;
+    //        std::cout<<"s3:\n"<<s3<<std::endl;
+    //        s3.backward(torch::ones_like(s3));
+    //        std::cout<<"s.grad():\n"<<s.grad()<<std::endl;
+    //        NtsVar s4=torch::zeros({3,1});
+    //        s4=(s2*s1)-(s2)*(s2.t().mm(s1));
+    //    NtsVar s4=torch::rand({3,3});
+    //        std::cout<<"s4.grad():\n"<<s4<<"\n"<<s4.sum(-1)<<std::endl;
     exec_time += get_time();
 
     //    nts::OP::ntsOps  *nop=new nts::OP::ntsOps(graph,active);
@@ -280,5 +277,4 @@ public:
 
     delete active;
   }
-  
 };

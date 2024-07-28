@@ -16,23 +16,23 @@ public:
   VertexSubset *active;
   // graph with no edge data
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
-  //GraphOperation *gt;
+  // GraphOperation *gt;
   PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
-  nts::ctx::NtsContext* ctx;
+  nts::ctx::NtsContext *ctx;
   // Sampler* train_sampler;
   // Sampler* val_sampler;
   // Sampler* test_sampler;
-  FullyRepGraph* fully_rep_graph;
-  
+  FullyRepGraph *fully_rep_graph;
+
   NtsVar F;
   NtsVar loss;
   NtsVar tt;
@@ -42,7 +42,8 @@ public:
   torch::nn::Dropout drpmodel;
 
   GCN_CPU_SAMPLE_impl(Graph<Empty> *graph_, int iterations_,
-               bool process_local = false, bool process_overlap = false) {
+                      bool process_local = false,
+                      bool process_overlap = false) {
     graph = graph_;
     iterations = iterations_;
 
@@ -62,14 +63,14 @@ public:
     graph->rtminfo->lock_free = graph->config->lock_free;
   }
   void init_graph() {
-    
-      fully_rep_graph=new FullyRepGraph(graph);
-      fully_rep_graph->GenerateAll();
-      fully_rep_graph->SyncAndLog("read_finish");
-      // sampler=new Sampler(fully_rep_graph,0,graph->vertices);
-      
-    //cp = new nts::autodiff::ComputionPath(gt, subgraphs);
-    ctx=new nts::ctx::NtsContext();
+
+    fully_rep_graph = new FullyRepGraph(graph);
+    fully_rep_graph->GenerateAll();
+    fully_rep_graph->SyncAndLog("read_finish");
+    // sampler=new Sampler(fully_rep_graph,0,graph->vertices);
+
+    // cp = new nts::autodiff::ComputionPath(gt, subgraphs);
+    ctx = new nts::ctx::NtsContext();
   }
   void init_nn() {
 
@@ -123,7 +124,7 @@ public:
       NtsVar d;
       X.push_back(d);
     }
-    
+
     X[0] = F.set_requires_grad(true);
   }
 
@@ -164,12 +165,12 @@ public:
       }
     }
   }
- 
-  void Loss(NtsVar &left,NtsVar &right) {
+
+  void Loss(NtsVar &left, NtsVar &right) {
     //  return torch::nll_loss(a,L_GT_C);
     torch::Tensor a = left.log_softmax(1);
-    NtsVar loss_; 
-    loss_= torch::nll_loss(a,right);
+    NtsVar loss_;
+    loss_ = torch::nll_loss(a, right);
     if (ctx->training == true) {
       ctx->appendNNOp(left, loss_);
     }
@@ -184,62 +185,69 @@ public:
       P[i]->next();
     }
   }
-  
-  void Forward(Sampler* sampler, int type=0) {
-    graph->rtminfo->forward = true;
-      
-    while(sampler->sample_not_finished()){
-          sampler->reservoir_sample(graph->gnnctx->layer_size.size()-1,
-                                    graph->config->batch_size,
-                                    graph->gnnctx->fanout);
-    }
-      SampledSubgraph *sg;
-      // acc=0.0;
-      correct = 0;
-      batch=0;
-      while(sampler->has_rest()){
-           sg=sampler->get_one();
-           std::vector<NtsVar> X;
-           NtsVar d;
-           X.resize(graph->gnnctx->layer_size.size(),d);
-         
-           X[0]=nts::op::get_feature(sg->sampled_sgs[graph->gnnctx->layer_size.size()-2]->src(),F,graph);
-           NtsVar target_lab=nts::op::get_label(sg->sampled_sgs[0]->dst(),L_GT_C,graph);
-           for(int l=0;l<(graph->gnnctx->layer_size.size()-1);l++){//forward
-               
-               int hop=(graph->gnnctx->layer_size.size()-2)-l;
-               if(l!=0){
-                    X[l] = drpmodel(X[l]);
-               }
-               NtsVar Y_i=ctx->runGraphOp<nts::op::MiniBatchFuseOp>(sg,graph,hop,X[l]);
-               X[l + 1]=ctx->runVertexForward([&](NtsVar n_i){
-                   if (l==(graph->gnnctx->layer_size.size()-2)) {
-                        return P[l]->forward(n_i);
-                    }else{
-                       return torch::relu(P[l]->forward(n_i));
-                    }
-                },
-                Y_i);
-           } 
-           Loss(X[graph->gnnctx->layer_size.size()-1],target_lab);
-          correct += getCorrect(X[graph->gnnctx->layer_size.size()-1], target_lab);
-          if (ctx->training) {
-            ctx->self_backward(false);
-          }
-           Update();
-           batch++;
-      }
 
-       sampler->clear_queue();
-       sampler->restart();
-      acc = 1.0 * correct / sampler->work_range[1];
-      if (type == 0) {
-        LOG_INFO("Train Acc: %f %d %d", acc, correct, sampler->work_range[1]);
-      } else if (type == 1) {
-        LOG_INFO("Eval Acc: %f %d %d", acc, correct, sampler->work_range[1]);
-      } else if (type == 2) {
-        LOG_INFO("Test Acc: %f %d %d", acc, correct, sampler->work_range[1]);
+  void Forward(Sampler *sampler, int type = 0) {
+    graph->rtminfo->forward = true;
+
+    while (sampler->sample_not_finished()) {
+      sampler->reservoir_sample(graph->gnnctx->layer_size.size() - 1,
+                                graph->config->batch_size,
+                                graph->gnnctx->fanout);
+    }
+    SampledSubgraph *sg;
+    // acc=0.0;
+    correct = 0;
+    batch = 0;
+    while (sampler->has_rest()) {
+      sg = sampler->get_one();
+      std::vector<NtsVar> X;
+      NtsVar d;
+      X.resize(graph->gnnctx->layer_size.size(), d);
+
+      X[0] = nts::op::get_feature(
+          sg->sampled_sgs[graph->gnnctx->layer_size.size() - 2]->src(), F,
+          graph);
+      NtsVar target_lab =
+          nts::op::get_label(sg->sampled_sgs[0]->dst(), L_GT_C, graph);
+      for (int l = 0; l < (graph->gnnctx->layer_size.size() - 1);
+           l++) { // forward
+
+        int hop = (graph->gnnctx->layer_size.size() - 2) - l;
+        if (l != 0) {
+          X[l] = drpmodel(X[l]);
+        }
+        NtsVar Y_i =
+            ctx->runGraphOp<nts::op::MiniBatchFuseOp>(sg, graph, hop, X[l]);
+        X[l + 1] = ctx->runVertexForward(
+            [&](NtsVar n_i) {
+              if (l == (graph->gnnctx->layer_size.size() - 2)) {
+                return P[l]->forward(n_i);
+              } else {
+                return torch::relu(P[l]->forward(n_i));
+              }
+            },
+            Y_i);
       }
+      Loss(X[graph->gnnctx->layer_size.size() - 1], target_lab);
+      correct +=
+          getCorrect(X[graph->gnnctx->layer_size.size() - 1], target_lab);
+      if (ctx->training) {
+        ctx->self_backward(false);
+      }
+      Update();
+      batch++;
+    }
+
+    sampler->clear_queue();
+    sampler->restart();
+    acc = 1.0 * correct / sampler->work_range[1];
+    if (type == 0) {
+      LOG_INFO("Train Acc: %f %d %d", acc, correct, sampler->work_range[1]);
+    } else if (type == 1) {
+      LOG_INFO("Eval Acc: %f %d %d", acc, correct, sampler->work_range[1]);
+    } else if (type == 2) {
+      LOG_INFO("Test Acc: %f %d %d", acc, correct, sampler->work_range[1]);
+    }
   }
 
   void run() {
@@ -259,10 +267,10 @@ public:
         test_nids.push_back(i);
       }
     }
-      
-    Sampler* train_sampler = new Sampler(fully_rep_graph, train_nids);
-    Sampler* eval_sampler = new Sampler(fully_rep_graph, val_nids);
-    Sampler* test_sampler = new Sampler(fully_rep_graph, test_nids);
+
+    Sampler *train_sampler = new Sampler(fully_rep_graph, train_nids);
+    Sampler *eval_sampler = new Sampler(fully_rep_graph, val_nids);
+    Sampler *test_sampler = new Sampler(fully_rep_graph, test_nids);
 
     for (int i_i = 0; i_i < iterations; i_i++) {
       graph->rtminfo->epoch = i_i;
@@ -272,18 +280,17 @@ public:
           P[i]->zero_grad();
         }
       }
-      
+
       ctx->train();
       Forward(train_sampler, 0);
-      
+
       ctx->eval();
       Forward(eval_sampler, 1);
       Forward(test_sampler, 2);
-  //      if (graph->partition_id == 0)
-  //        std::cout << "Nts::Running.Epoch[" << i_i << "]:loss\t" << loss
-  //                  << std::endl;
+      //      if (graph->partition_id == 0)
+      //        std::cout << "Nts::Running.Epoch[" << i_i << "]:loss\t" << loss
+      //                  << std::endl;
     }
     delete active;
   }
-
 };

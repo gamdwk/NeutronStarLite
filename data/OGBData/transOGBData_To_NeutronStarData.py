@@ -14,10 +14,10 @@ if __name__ == '__main__':
         os.makedirs(dataName + '/tempData')
 
     #Copy a new edge .csv file to prevent subsequent operations from contaminating the original file
-    shutil.copy(dataName + '/raw/edge.csv/edge.csv',dataName + '/tempData/edge_data_L.csv')
+    shutil.copy(dataName + '/raw/edge.csv',dataName + '/tempData/edge_data_L.csv')
 
     #Added loop edge L
-    with open(dataName + '/raw/num-node-list.csv/num-node-list.csv', "r") as my_input_file:
+    with open(dataName + '/raw/num-node-list.csv', "r") as my_input_file:
        for x in csv.reader(my_input_file):
             n = int(x[0])
     alist = list(range(n))
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     #label trans
     n = 0
     with open(dataName + '/Data/node_label.txt', "w") as my_output_file:
-        with open(dataName + '/raw/node-label.csv/node-label.csv', "r") as my_input_file:
+        with open(dataName + '/raw/node-label.csv', "r") as my_input_file:
             for row in csv.reader(my_input_file):
                 my_output_file.write(str(n) + " " + " ".join(row)+'\n')
                 n += 1
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     #feat trans
     n = 0
     with open(dataName + '/Data/node_feat.txt', "w") as my_output_file:
-        with open(dataName + '/raw/node-feat.csv/node-feat.csv', "r") as my_input_file:
+        with open(dataName + '/raw/node-feat.csv', "r") as my_input_file:
             for row in csv.reader(my_input_file):
                 my_output_file.write(str(n) + " " + " ".join(row)+'\n')
                 n += 1

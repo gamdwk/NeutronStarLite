@@ -15,28 +15,28 @@ public:
   // graph
   VertexSubset *active;
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
   std::map<std::string, NtsVar> I_data;
-  //GraphOperation *gt;
-  PartitionedGraph* partitioned_graph;
+  // GraphOperation *gt;
+  PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
   std::vector<NtsVar> Y;
   std::vector<NtsVar> X_grad;
-  nts::ctx::NtsContext* ctx;
-  //nts::autodiff::ComputionPath *cp;
+  nts::ctx::NtsContext *ctx;
+  // nts::autodiff::ComputionPath *cp;
   NtsVar F;
   NtsVar loss;
   NtsVar tt;
   torch::nn::Dropout drpmodel;
   std::vector<torch::nn::BatchNorm1d> bn1d;
-  //torch::nn::ModuleList bn1d;
+  // torch::nn::ModuleList bn1d;
   double exec_time = 0;
   double all_sync_time = 0;
   double sync_time = 0;
@@ -70,18 +70,21 @@ public:
   }
   void init_graph() {
     // std::vector<CSC_segment_pinned *> csc_segment;
-//    graph->generate_COO();
-//    graph->reorder_COO_W2W();
-//    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
-//    gt = new GraphOperation(graph, active);
-//    gt->GenerateGraphSegment(subgraphs, CPU_T,
-//                             [&](VertexId src, VertexId dst) { return 1; });
-//    // gt->GenerateMessageBitmap(subgraphs);
-//    gt->GenerateMessageBitmap_multisokects(subgraphs);
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return nts::op::nts_norm_degree(graph,src, dst);
-    },CPU_T);      
+    //    graph->generate_COO();
+    //    graph->reorder_COO_W2W();
+    //    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
+    //    gt = new GraphOperation(graph, active);
+    //    gt->GenerateGraphSegment(subgraphs, CPU_T,
+    //                             [&](VertexId src, VertexId dst) { return 1;
+    //                             });
+    //    // gt->GenerateMessageBitmap(subgraphs);
+    //    gt->GenerateMessageBitmap_multisokects(subgraphs);
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) {
+          return nts::op::nts_norm_degree(graph, src, dst);
+        },
+        CPU_T);
     graph->init_communicatior();
     ctx = new nts::ctx::NtsContext();
   }
@@ -129,11 +132,12 @@ public:
         gnndatum->local_feature,
         {graph->gnnctx->l_v_num, graph->gnnctx->layer_size[0]},
         torch::DeviceType::CPU);
-        
+
     for (int i = 0; i < graph->gnnctx->layer_size.size(); i++) {
-      if(i<graph->gnnctx->layer_size.size()){
-          //push_back(torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i+1]));
-          bn1d.push_back(torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i+1]));
+      if (i < graph->gnnctx->layer_size.size()) {
+        // push_back(torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i+1]));
+        bn1d.push_back(
+            torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i + 1]));
       }
       NtsVar d;
       X.push_back(d);
@@ -177,14 +181,14 @@ public:
     NtsVar y;
     int layer = graph->rtminfo->curr_layer;
     if (layer < graph->gnnctx->layer_size.size() - 2) {
-      y = bn1d[layer](torch::relu(P[layer * 2 + 1]
-              ->forward(torch::relu(P[layer * 2 + 0]->forward(a + (1)*x)))));
-//              .set_requires_grad(true);
+      y = bn1d[layer](torch::relu(P[layer * 2 + 1]->forward(
+          torch::relu(P[layer * 2 + 0]->forward(a + (1) * x)))));
+      //              .set_requires_grad(true);
     } else if (layer == graph->gnnctx->layer_size.size() - 2) {
       y = bn1d[layer](P[layer * 2 + 1]->forward(
-          torch::relu(P[layer * 2 + 0]->forward(a + (1)*x))));
+          torch::relu(P[layer * 2 + 0]->forward(a + (1) * x))));
     }
-    
+
     return y;
   }
   void Loss() {
@@ -204,7 +208,6 @@ public:
       // P[i]->learnC2C_with_decay_SGD(learn_rate,weight_decay);
       P[i]->learnC2C_with_decay_Adam();
       P[i]->next();
-
     }
   }
   void Forward() {
@@ -212,18 +215,14 @@ public:
     for (int i = 0; i < graph->gnnctx->layer_size.size() - 1; i++) {
       graph->rtminfo->curr_layer = i;
 
-      
-    //  gt->PropagateForwardCPU_Lockfree_multisockets(X[i], Y[i], subgraphs);
-      NtsVar Y_i=ctx->runGraphOp<nts::op::ForwardCPUfuseOp>(
-              partitioned_graph,active,X[i]);
-      X[i + 1]=ctx->runVertexForward([&](NtsVar n_i,NtsVar v_i){
-            return vertexForward(n_i, v_i);
-        },
-        Y_i,
-        X[i]);
+      //  gt->PropagateForwardCPU_Lockfree_multisockets(X[i], Y[i], subgraphs);
+      NtsVar Y_i = ctx->runGraphOp<nts::op::ForwardCPUfuseOp>(partitioned_graph,
+                                                              active, X[i]);
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar n_i, NtsVar v_i) { return vertexForward(n_i, v_i); }, Y_i,
+          X[i]);
     }
   }
-
 
   void run() {
     if (graph->partition_id == 0)

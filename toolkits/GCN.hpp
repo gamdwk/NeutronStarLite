@@ -15,17 +15,17 @@ public:
   // graph
   VertexSubset *active;
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
   NtsVar MASK_gpu;
   std::map<std::string, NtsVar> I_data;
- //GraphOperation *gt;
-  PartitionedGraph* partitioned_graph;
-  nts::ctx::NtsContext* ctx;
+  // GraphOperation *gt;
+  PartitionedGraph *partitioned_graph;
+  nts::ctx::NtsContext *ctx;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
@@ -67,17 +67,20 @@ public:
   }
   void init_graph() {
     // std::vector<CSC_segment_pinned *> csc_segment;
-//    graph->generate_COO();
-//    graph->reorder_COO_W2W();
-//    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
-//    gt = new GraphOperation(graph, active);
-//    gt->GenerateGraphSegment(subgraphs, GPU_T, [&](VertexId src, VertexId dst) {
-//      return gt->norm_degree(src, dst);
-//    });
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return nts::op::nts_norm_degree(graph,src, dst);
-    },GPU_T);    
+    //    graph->generate_COO();
+    //    graph->reorder_COO_W2W();
+    //    // generate_CSC_Segment_Tensor_pinned(graph, csc_segment, true);
+    //    gt = new GraphOperation(graph, active);
+    //    gt->GenerateGraphSegment(subgraphs, GPU_T, [&](VertexId src, VertexId
+    //    dst) {
+    //      return gt->norm_degree(src, dst);
+    //    });
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) {
+          return nts::op::nts_norm_degree(graph, src, dst);
+        },
+        GPU_T);
     double load_rep_time = 0;
     load_rep_time -= get_time();
     // graph->load_replicate3(graph->gnnctx->layer_size);
@@ -139,7 +142,6 @@ public:
         {graph->gnnctx->l_v_num, graph->gnnctx->layer_size[0]},
         torch::DeviceType::CPU);
 
-
     for (int i = 0; i < graph->gnnctx->layer_size.size(); i++) {
       NtsVar d;
       X.push_back(d);
@@ -191,7 +193,7 @@ public:
       y = y.log_softmax(1); // CUDA
     }
 
-    //cp->op_push(a, y, nts::autodiff::NNOP);
+    // cp->op_push(a, y, nts::autodiff::NNOP);
     return y;
   }
 
@@ -221,16 +223,15 @@ public:
       if (i != 0) {
         X[i] = drpmodel(X[i]);
       }
-//      gt->GraphPropagateForward(X[i], Y[i], subgraphs);
-//      cp->op_push(X[i], Y[i], nts::autodiff::DIST_GPU);
-//      X[i + 1] = vertexForward(Y[i], X[i]);
-       NtsVar Y_i= ctx->runGraphOp<nts::op::ForwardGPUfuseOp>(partitioned_graph,active,X[i]);      
-        X[i + 1]=ctx->runVertexForward([&](NtsVar n_i,NtsVar v_i){
-            return vertexForward(n_i, v_i);
-        },
-        Y_i,
-        X[i]);
-  //      printf("stateless\n");
+      //      gt->GraphPropagateForward(X[i], Y[i], subgraphs);
+      //      cp->op_push(X[i], Y[i], nts::autodiff::DIST_GPU);
+      //      X[i + 1] = vertexForward(Y[i], X[i]);
+      NtsVar Y_i = ctx->runGraphOp<nts::op::ForwardGPUfuseOp>(partitioned_graph,
+                                                              active, X[i]);
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar n_i, NtsVar v_i) { return vertexForward(n_i, v_i); }, Y_i,
+          X[i]);
+      //      printf("stateless\n");
     }
   }
 

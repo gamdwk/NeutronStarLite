@@ -16,25 +16,25 @@ public:
   VertexSubset *active;
   // graph with no edge data
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
-  //GraphOperation *gt;
+  // GraphOperation *gt;
   PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
-  nts::ctx::NtsContext* ctx;
-  
+  nts::ctx::NtsContext *ctx;
+
   NtsVar F;
   NtsVar loss;
   NtsVar tt;
   torch::nn::Dropout drpmodel;
   std::vector<torch::nn::BatchNorm1d> bn1d;
-  
+
   double exec_time = 0;
   double all_sync_time = 0;
   double sync_time = 0;
@@ -68,14 +68,15 @@ public:
   }
   void init_graph() {
 
-    
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return nts::op::nts_norm_degree(graph,src, dst);
-    },CPU_T,(graph->partitions)>1);
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) {
+          return nts::op::nts_norm_degree(graph, src, dst);
+        },
+        CPU_T, (graph->partitions) > 1);
     graph->init_communicatior();
-    //cp = new nts::autodiff::ComputionPath(gt, subgraphs);
-    ctx=new nts::ctx::NtsContext();
+    // cp = new nts::autodiff::ComputionPath(gt, subgraphs);
+    ctx = new nts::ctx::NtsContext();
   }
   void init_nn() {
 
@@ -111,8 +112,8 @@ public:
       P.push_back(new Parameter(graph->gnnctx->layer_size[i],
                                 graph->gnnctx->layer_size[i + 1], alpha, beta1,
                                 beta2, epsilon, weight_decay));
-      if(i < graph->gnnctx->layer_size.size() - 2)
-        bn1d.push_back(torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i])); 
+      if (i < graph->gnnctx->layer_size.size() - 2)
+        bn1d.push_back(torch::nn::BatchNorm1d(graph->gnnctx->layer_size[i]));
     }
 
     // synchronize parameter with other processes
@@ -122,7 +123,7 @@ public:
       P[i]->set_decay(decay_rate, decay_epoch);
     }
     drpmodel = torch::nn::Dropout(
-        torch::nn::DropoutOptions().p(drop_rate).inplace(true));
+        torch::nn::DropoutOptions().p(drop_rate).inplace(false));
 
     F = graph->Nts->NewLeafTensor(
         gnndatum->local_feature,
@@ -174,14 +175,15 @@ public:
     int layer = graph->rtminfo->curr_layer;
     // nn operation. Here is just a simple matmul. i.e. y = activate(a * w)
     if (layer == 0) {
-      a =this->bn1d[layer](a);
-      y = torch::relu(P[layer]->forward(a)).set_requires_grad(true);
+      a = this->bn1d[layer](a);
+      y = P[layer]->forward(a);
+      y = torch::relu(y).set_requires_grad(true);
     } else if (layer == 1) {
       y = P[layer]->forward(a);
       y = y.log_softmax(1);
     }
     // save the intermediate result for backward propagation
- //   ctx->op_push(a, y, nts::ctx::NNOP);
+    //   ctx->op_push(a, y, nts::ctx::NNOP);
     return y;
   }
   void Loss() {
@@ -208,24 +210,29 @@ public:
     graph->rtminfo->forward = true;
     for (int i = 0; i < graph->gnnctx->layer_size.size() - 1; i++) {
       graph->rtminfo->curr_layer = i;
-//      if (i != 0) {
-//        X[i] = drpmodel(X[i]);
-//      }
+      //      if (i != 0) {
+      //        X[i] = drpmodel(X[i]);
+      //      }
 
-       NtsVar Y_i= ctx->runGraphOp<nts::op::ForwardCPUfuseOp>(partitioned_graph,active,X[i]);      
-        X[i + 1]=ctx->runVertexForward([&](NtsVar n_i,NtsVar v_i){
-            if(i<(graph->gnnctx->layer_size.size() - 2)){
-                n_i =this->bn1d[i](n_i);
-                return drpmodel(torch::relu(P[i]->forward(n_i)));
-                
-            }else{
-                return  P[i]->forward(n_i);
+      NtsVar Y_i = ctx->runGraphOp<nts::op::ForwardCPUfuseOp>(partitioned_graph,
+                                                              active, X[i]);
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar n_i, NtsVar v_i) {
+            NtsVar y;
+            if (i < (graph->gnnctx->layer_size.size() - 2)) {
+              n_i = this->bn1d[i](n_i);
+              y = P[i]->forward(n_i);
+              y = torch::relu(y);
+              y = drpmodel(y);
+              return y;
+
+            } else {
+              return P[i]->forward(n_i);
             }
-            
-            //return vertexForward(n_i, v_i);
-        },
-        Y_i,
-        X[i]);
+
+            // return vertexForward(n_i, v_i);
+          },
+          Y_i, X[i]);
     }
   }
 
@@ -243,33 +250,33 @@ public:
           P[i]->zero_grad();
         }
       }
-      
+
       Forward();
       Test(0);
       Test(1);
       Test(2);
       Loss();
-      
+
       ctx->self_backward();
       Update();
-//       ctx->debug();
+      //       ctx->debug();
       if (graph->partition_id == 0)
         std::cout << "Nts::Running.Epoch[" << i_i << "]:loss\t" << loss
                   << std::endl;
     }
     exec_time += get_time();
-//    std::string str="a10";
-//    at::ArrayRef<at::Dimname>names({at::Dimname::fromSymbol(at::Symbol::dimname(str)),at::Dimname::fromSymbol(at::Symbol::dimname("b10"))});
-//    at::ArrayRef<at::Dimname>names({at::Dimname::fromSymbol(at::Symbol::dimname(str)),at::Dimname::fromSymbol(at::Symbol::dimname("b10"))});
-//    NtsVar s=torch::ones({3,3},names,at::TensorOptions().requires_grad(true));
-//    std::vector<at::Dimname> dim;
-    
-//    dim.push_back(at::Dimname::fromSymbol(at::Symbol::aten("0")));
-//    dim.push_back(at::Dimname::fromSymbol(at::Symbol::aten("1")));
-//    s.get_named_tensor_meta()->set_names(at::NamedTensorMeta::HasNonWildcard,dim);
-//    at::DimnameList::
-//    std::cout<<" "<<s.names()[0]<<" " <<s.names()[1]<<std::endl;
+    //    std::string str="a10";
+    //    at::ArrayRef<at::Dimname>names({at::Dimname::fromSymbol(at::Symbol::dimname(str)),at::Dimname::fromSymbol(at::Symbol::dimname("b10"))});
+    //    at::ArrayRef<at::Dimname>names({at::Dimname::fromSymbol(at::Symbol::dimname(str)),at::Dimname::fromSymbol(at::Symbol::dimname("b10"))});
+    //    NtsVar
+    //    s=torch::ones({3,3},names,at::TensorOptions().requires_grad(true));
+    //    std::vector<at::Dimname> dim;
+
+    //    dim.push_back(at::Dimname::fromSymbol(at::Symbol::aten("0")));
+    //    dim.push_back(at::Dimname::fromSymbol(at::Symbol::aten("1")));
+    //    s.get_named_tensor_meta()->set_names(at::NamedTensorMeta::HasNonWildcard,dim);
+    //    at::DimnameList::
+    //    std::cout<<" "<<s.names()[0]<<" " <<s.names()[1]<<std::endl;
     delete active;
   }
-
 };

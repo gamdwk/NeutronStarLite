@@ -13,22 +13,23 @@ Copyright (c) 2021-2022 Qiange Wang, Northeastern University
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-
+// #include "torch/csrc/autograd/anomaly_mode.h"
 #include "GAT_CPU.hpp"
-#include "GCN_CPU_SAMPLE.hpp"
+#include "GAT_CPU_DIST.hpp"
 #include "GCN_CPU.hpp"
 #include "GCN_CPU_EAGER.hpp"
-#include "GAT_CPU_DIST.hpp"
+#include "GCN_CPU_SAMPLE.hpp"
 #include "GIN_CPU.hpp"
+#include "helper/debug_helper.hpp"
 #include "test_getdepneighbor_cpu.hpp"
 #if CUDA_ENABLE
-#include "test_getdepneighbor_gpu.hpp"
-#include "GAT_GPU_DIST.hpp"
 #include "COMMNET_GPU.hpp"
+#include "GAT_GPU_DIST.hpp"
 #include "GCN.hpp"
 #include "GCN_EAGER.hpp"
 #include "GCN_EAGER_single.hpp"
 #include "GIN_GPU.hpp"
+#include "test_getdepneighbor_gpu.hpp"
 #endif
 
 int main(int argc, char **argv) {
@@ -37,7 +38,14 @@ int main(int argc, char **argv) {
     printf("configuration file missed \n");
     exit(-1);
   }
-
+// torch::autograd::AnomalyMode::set_enabled(true);
+// bool gdb_test = true;
+// while(gdb_test){
+// }
+#if CUDA_ENABLE
+  int gpu_id = mpi.get_partition_id() % 2;
+  cudaSetDevice(gpu_id);
+#endif
   double exec_time = 0;
   exec_time -= get_time();
 
@@ -67,7 +75,7 @@ int main(int argc, char **argv) {
   } else if (graph->config->algorithm == std::string("GCNSAMPLESINGLE")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
-        GCN_CPU_SAMPLE_impl *ntsGCN = new GCN_CPU_SAMPLE_impl(graph, iterations);
+    GCN_CPU_SAMPLE_impl *ntsGCN = new GCN_CPU_SAMPLE_impl(graph, iterations);
     ntsGCN->init_graph();
     ntsGCN->init_nn();
     ntsGCN->run();
@@ -78,13 +86,13 @@ int main(int argc, char **argv) {
     ntsGCN->init_graph();
     ntsGCN->init_nn();
     ntsGCN->run();
-//  } else if (graph->config->algorithm == std::string("GGNNCPU")) {
-//    graph->load_directed(graph->config->edge_file, graph->config->vertices);
-//    graph->generate_backward_structure();
-//    GGNN_CPU_impl *ntsGGNN = new GGNN_CPU_impl(graph, iterations);
-//    ntsGGNN->init_graph();
-//    ntsGGNN->init_nn();
-//    ntsGGNN->run();
+    //  } else if (graph->config->algorithm == std::string("GGNNCPU")) {
+    //    graph->load_directed(graph->config->edge_file,
+    //    graph->config->vertices); graph->generate_backward_structure();
+    //    GGNN_CPU_impl *ntsGGNN = new GGNN_CPU_impl(graph, iterations);
+    //    ntsGGNN->init_graph();
+    //    ntsGGNN->init_nn();
+    //    ntsGGNN->run();
   } else if (graph->config->algorithm == std::string("GATCPU")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
@@ -92,22 +100,21 @@ int main(int argc, char **argv) {
     ntsGAT->init_graph();
     ntsGAT->init_nn();
     ntsGAT->run();
-  }else if (graph->config->algorithm == std::string("GATCPUDIST")) {
+  } else if (graph->config->algorithm == std::string("GATCPUDIST")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
     GAT_CPU_DIST_impl *ntsGAT = new GAT_CPU_DIST_impl(graph, iterations);
     ntsGAT->init_graph();
     ntsGAT->init_nn();
     ntsGAT->run();
-//  }  else if (graph->config->algorithm == std::string("GGCNCPU")) {
-//    graph->load_directed(graph->config->edge_file, graph->config->vertices);
-//    graph->generate_backward_structure();
-//    GGCN_CPU_impl *ntsGAT = new GGCN_CPU_impl(graph, iterations);
-//    ntsGAT->init_graph();
-//    ntsGAT->init_nn();
-//    ntsGAT->run();
-  }
-  else if (graph->config->algorithm == std::string("test_getdep1")) {
+    //  }  else if (graph->config->algorithm == std::string("GGCNCPU")) {
+    //    graph->load_directed(graph->config->edge_file,
+    //    graph->config->vertices); graph->generate_backward_structure();
+    //    GGCN_CPU_impl *ntsGAT = new GGCN_CPU_impl(graph, iterations);
+    //    ntsGAT->init_graph();
+    //    ntsGAT->init_nn();
+    //    ntsGAT->run();
+  } else if (graph->config->algorithm == std::string("test_getdep1")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
     test_get_neighbor *ntsGAT = new test_get_neighbor(graph, iterations);
@@ -115,24 +122,25 @@ int main(int argc, char **argv) {
     ntsGAT->init_nn();
     ntsGAT->run();
   }
- 
+
 #if CUDA_ENABLE
   else if (graph->config->algorithm == std::string("test_getdep")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
-    test_get_neighbor_gpu *ntsGAT = new test_get_neighbor_gpu(graph, iterations);
+    test_get_neighbor_gpu *ntsGAT =
+        new test_get_neighbor_gpu(graph, iterations);
     ntsGAT->init_graph();
     ntsGAT->init_nn();
     ntsGAT->run();
-  }
-    else if (graph->config->algorithm == std::string("GATGPUDIST")) {
+  } else if (graph->config->algorithm == std::string("GATGPUDIST")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
     GAT_GPU_DIST_impl *ntsGAT = new GAT_GPU_DIST_impl(graph, iterations);
     ntsGAT->init_graph();
     ntsGAT->init_nn();
+    wait_gdb();
     ntsGAT->run();
-    } else if (graph->config->algorithm == std::string("COMMNETGPU")) {
+  } else if (graph->config->algorithm == std::string("COMMNETGPU")) {
     graph->load_directed(graph->config->edge_file, graph->config->vertices);
     graph->generate_backward_structure();
     COMMNET_impl *ntsCOMM = new COMMNET_impl(graph, iterations);

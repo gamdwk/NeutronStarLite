@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 add_definitions(-w)
 
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 # please change this to the path where you put libtorch
 # TODO: torch path should not hard coded in cmake file
-list(APPEND CMAKE_PREFIX_PATH "./GPU_libtorch/libtorch-1-9/libtorch/")
+list(APPEND CMAKE_PREFIX_PATH "./libtorch/")
 
 project(GNNmini)
 set(ENV{LANG} "C")
@@ -36,7 +37,7 @@ endif()
 
 # Expected directory structure.
 set(NEUTRONSTAR_BUILD_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/build_support")
-set(NEUTRONSTAR_CLANG_SEARCH_PATH "/usr/local/bin" "/usr/bin" "/usr/local/opt/llvm/bin" "/usr/local/opt/llvm@8/bin"
+set(NEUTRONSTAR_CLANG_SEARCH_PATH "/home/sj/anaconda3/envs/neutronstar/bin" "/usr/local/bin" "/usr/bin" "/usr/local/opt/llvm/bin" "/usr/local/opt/llvm@8/bin"
         "/usr/local/Cellar/llvm/8.0.1/bin")
 
 # clang-format
@@ -87,19 +88,19 @@ add_custom_target(format ${NEUTRONSTAR_BUILD_SUPPORT_DIR}/run_clang_format.py
         --fix
         # --quiet
         )
-
 include_directories(
 ${CMAKE_CURRENT_SOURCE_DIR}
 ./core
 ./comm
 ./cuda
 ./dep/gemini
+./helper
 ${MPI_INCLUDE_PATH}
 )
 
 # setting debug flags
-set(CMAKE_CXX_FLAGS "-O3 -Wall -std=c++14 -g -fopenmp -march=native")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++14 -fopenmp -march=native -O0 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+set(CMAKE_CXX_FLAGS "-O3 -Wall -std=c++17 -g -fopenmp -march=native -I/home/sj/anaconda3/envs/neutronstar/include")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -I/home/sj/anaconda3/envs/neutronstar/include -std=c++17 -fopenmp -march=native -O3 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
 
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
@@ -116,6 +117,9 @@ set(NEUTRONSTAR_TEST_SRC_FILES
         "comm/network.cpp"
 )
 
+set(NEUTRONSTAR_TEST_TORCH_FILES
+	"test/test_torch.cpp"
+)
 
 add_executable(nts ${NEUTRONSTAR_SRC_FILES})
 if (CUDA_ENABLE)
@@ -137,3 +141,10 @@ endif()
 # mpiexec -np $1 ./build/nts $2
 # releated issue https://github.com/google/sanitizers/issues/629
 # we have to export those variables to prevent cuda panic while using address sanitizer
+
+add_executable(torch_test ${NEUTRONSTAR_TEST_TORCH_FILES})
+if (CUDA_ENABLE)
+        target_link_libraries(torch_test  ${TORCH_LIBRARIES} ${MPI_LIBRARIES} numa ${CUDA_LIBRARIES} cuda_propagate)
+else()
+        target_link_libraries(torch_test  ${TORCH_LIBRARIES} ${MPI_LIBRARIES} numa)
+endif()

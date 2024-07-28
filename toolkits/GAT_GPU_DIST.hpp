@@ -15,24 +15,24 @@ public:
   VertexSubset *active;
   // graph with no edge data
   Graph<Empty> *graph;
-  //std::vector<CSC_segment_pinned *> subgraphs;
-  // NN
+  // std::vector<CSC_segment_pinned *> subgraphs;
+  //  NN
   GNNDatum *gnndatum;
   NtsVar L_GT_C;
   NtsVar L_GT_G;
   NtsVar MASK;
   NtsVar MASK_gpu;
-  //GraphOperation *gt;
+  // GraphOperation *gt;
   PartitionedGraph *partitioned_graph;
   // Variables
   std::vector<Parameter *> P;
   std::vector<NtsVar> X;
-  nts::ctx::NtsContext* ctx;
-  
+  nts::ctx::NtsContext *ctx;
+
   NtsVar F;
   NtsVar loss;
   NtsVar tt;
-  
+
   double exec_time = 0;
   double all_sync_time = 0;
   double sync_time = 0;
@@ -46,7 +46,7 @@ public:
   double all_graph_time = 0;
 
   GAT_GPU_DIST_impl(Graph<Empty> *graph_, int iterations_,
-               bool process_local = false, bool process_overlap = false) {
+                    bool process_local = false, bool process_overlap = false) {
     graph = graph_;
     iterations = iterations_;
 
@@ -65,14 +65,16 @@ public:
     graph->rtminfo->lock_free = graph->config->lock_free;
   }
   void init_graph() {
-    
-    partitioned_graph=new PartitionedGraph(graph, active);
-    partitioned_graph->GenerateAll([&](VertexId src, VertexId dst) {
-      return nts::op::nts_norm_degree(graph,src, dst);
-    },CPU_T,true);
+
+    partitioned_graph = new PartitionedGraph(graph, active);
+    partitioned_graph->GenerateAll(
+        [&](VertexId src, VertexId dst) {
+          return nts::op::nts_norm_degree(graph, src, dst);
+        },
+        CPU_T, true);
     graph->init_communicatior();
-    //cp = new nts::autodiff::ComputionPath(gt, subgraphs);
-    ctx=new nts::ctx::NtsContext();
+    // cp = new nts::autodiff::ComputionPath(gt, subgraphs);
+    ctx = new nts::ctx::NtsContext();
   }
   void init_nn() {
 
@@ -114,21 +116,24 @@ public:
 
     // synchronize parameter with other processes
     // because we need to guarantee all of workers are using the same model
-    torch::Device GPU(torch::kCUDA, 0);
+    int device_id;
+    cudaGetDevice(&device_id);
+    torch::Device GPU(torch::kCUDA, device_id);
     for (int i = 0; i < P.size(); i++) {
       P[i]->init_parameter();
       P[i]->set_decay(decay_rate, decay_epoch);
       P[i]->to(GPU);
       P[i]->Adam_to_GPU();
     }
-
+    cudaGetDevice(&device_id);
+    // std::cout<<"cuda device Id "<<device_id<<std::endl;
     F = graph->Nts->NewLeafTensor(
         gnndatum->local_feature,
         {graph->gnnctx->l_v_num, graph->gnnctx->layer_size[0]},
         torch::DeviceType::CPU);
 
-      NtsVar d;
-      X.resize(graph->gnnctx->layer_size.size(),d);
+    NtsVar d;
+    X.resize(graph->gnnctx->layer_size.size(), d);
     // X[0] is the initial vertex representation. We created it from
     // local_feature
     X[0] = F.cuda();
@@ -185,36 +190,46 @@ public:
     }
   }
   void Forward() {
+    // std::cout << "forward" <<std::endl;
     graph->rtminfo->forward = true;
     for (int i = 0; i < graph->gnnctx->layer_size.size() - 1; i++) {
       graph->rtminfo->curr_layer = i;
-      NtsVar X_trans=ctx->runVertexForward([&](NtsVar x_i_){
-        int layer = graph->rtminfo->curr_layer;
-        return P[2 * layer]->forward(x_i_);
-      },
-        X[i]);
-      NtsVar mirror= ctx->runGraphOp<nts::op::DistGPUGetDepNbrOp>(partitioned_graph,active,X_trans);
-      NtsVar edge_src= ctx->runGraphOp<nts::op::DistGPUScatterSrc>(partitioned_graph,active,mirror);
-      NtsVar edge_dst= ctx->runGraphOp<nts::op::DistGPUScatterDst>(partitioned_graph,active,X_trans);
-      NtsVar e_msg=torch::cat({edge_src,edge_dst},1);
-      NtsVar m=ctx->runEdgeForward([&](NtsVar e_msg_){
+      NtsVar X_trans = ctx->runVertexForward(
+          [&](NtsVar x_i_) {
             int layer = graph->rtminfo->curr_layer;
-            return torch::leaky_relu(P[2 * layer + 1]->forward(e_msg_),0.2);
-        },
-      e_msg);//edge NN
-      //  partitioned_graph->SyncAndLog("e_msg_in");  
-      NtsVar a=ctx->runGraphOp<nts::op::DistGPUEdgeSoftMax>(partitioned_graph,
-              active,m);// edge NN   
-      NtsVar e_msg_out=ctx->runEdgeForward([&](NtsVar a_){
-            return edge_src*a_;
-        },
-      a);//Edge NN 
-     //            partitioned_graph->SyncAndLog("e_msg_out");   
-     NtsVar nbr= ctx->runGraphOp<nts::op::DistGPUAggregateDst>(partitioned_graph,active,e_msg_out); 
-     X[i+1]=ctx->runVertexForward([&](NtsVar nbr_){
-            return torch::relu(nbr_);
-        },nbr);
-                partitioned_graph->SyncAndLog("hello 2");
+            return P[2 * layer]->forward(x_i_);
+          },
+          X[i]);
+      // std::cout<<"mirror"<<std::endl;
+      NtsVar mirror = ctx->runGraphOp<nts::op::DistGPUGetDepNbrOp>(
+          partitioned_graph, active, X_trans);
+      // std::cout<<"edge_src"<<std::endl;
+      NtsVar edge_src = ctx->runGraphOp<nts::op::DistGPUScatterSrc>(
+          partitioned_graph, active, mirror);
+      // std::cout<<"edge_dst"<<std::endl;
+      NtsVar edge_dst = ctx->runGraphOp<nts::op::DistGPUScatterDst>(
+          partitioned_graph, active, X_trans);
+      // std::cout<<"runEdgeForward"<<std::endl;
+      NtsVar e_msg = torch::cat({edge_src, edge_dst}, 1);
+      NtsVar m = ctx->runEdgeForward(
+          [&](NtsVar e_msg_) {
+            int layer = graph->rtminfo->curr_layer;
+            return torch::leaky_relu(P[2 * layer + 1]->forward(e_msg_), 0.2);
+          },
+          e_msg); // edge NN
+      // std::cout<<"ctx->runEdgeForward end"<<std::endl;
+      //   partitioned_graph->SyncAndLog("e_msg_in");
+      NtsVar a = ctx->runGraphOp<nts::op::DistGPUEdgeSoftMax>(
+          partitioned_graph, active, m); // edge NN
+      NtsVar e_msg_out =
+          ctx->runEdgeForward([&](NtsVar a_) { return edge_src * a_; },
+                              a); // Edge NN
+      //            partitioned_graph->SyncAndLog("e_msg_out");
+      NtsVar nbr = ctx->runGraphOp<nts::op::DistGPUAggregateDst>(
+          partitioned_graph, active, e_msg_out);
+      X[i + 1] = ctx->runVertexForward(
+          [&](NtsVar nbr_) { return torch::relu(nbr_); }, nbr);
+      partitioned_graph->SyncAndLog("hello 2");
     }
   }
 
@@ -233,15 +248,14 @@ public:
         }
       }
       Forward();
-      
-      
-  //      printf("sizeof %d",sizeof(__m256i));
-//      printf("sizeof %d",sizeof(int));
+
+      //      printf("sizeof %d",sizeof(__m256i));
+      //      printf("sizeof %d",sizeof(int));
       Test(0);
       Test(1);
       Test(2);
       Loss();
-      
+
       ctx->self_backward(true);
       Update();
       // ctx->debug();
@@ -250,8 +264,6 @@ public:
                   << std::endl;
     }
 
-
     delete active;
   }
-
 };
